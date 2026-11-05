@@ -1,0 +1,91 @@
+<!DOCTYPE html><html lang="mr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{margin:0;font-family:sans-serif;background:#f4f1ea;color:#222;padding-bottom:64px}
+header{background:#1d3b2f;color:#fff;padding:14px 16px;font-size:18px}
+main{padding:12px}.c{background:#fff;border-radius:10px;padding:10px;margin:8px 0;box-shadow:0 1px 3px #0002}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#fff;border-top:1px solid #ccc}
+nav button{flex:1;padding:14px 0;border:0;background:none;font-size:13px}nav .on{color:#1d3b2f;font-weight:bold;border-top:3px solid #1d3b2f}
+input,select,textarea{width:100%;box-sizing:border-box;padding:9px;margin:3px 0;font-size:15px}
+button.p{background:#1d3b2f;color:#fff;border:0;padding:10px 14px;border-radius:8px;font-size:15px}
+.done{text-decoration:line-through;color:#888}.mic{width:96px;height:96px;border-radius:50%;font-size:38px;display:block;margin:14px auto}
+.g{color:#176b3a}.r{color:#b3261e}small{color:#666}.row{display:flex;gap:6px;align-items:center}
+</style></head><body><header>Goldy 🌟 <small id="clk" style="color:#cde"></small></header><main id="m"></main>
+<nav><button onclick="go('today')">आज</button><button onclick="go('goldy')">गोल्डी</button><button onclick="go('acc')">हिशोब</button><button onclick="go('notes')">नोट्स</button><button onclick="go('more')">अहवाल</button></nav>
+<script>
+const $=s=>document.querySelector(s);let D;try{D=JSON.parse(localStorage.goldy)}catch(e){}
+D=Object.assign({tasks:[],acc:[],notes:[],mem:[],seq:1,key:"",model:"gemini-flash-latest"},D||{});
+const save=()=>localStorage.goldy=JSON.stringify(D);
+const p2=n=>String(n).padStart(2,"0"),dstr=d=>d.getFullYear()+"-"+p2(d.getMonth()+1)+"-"+p2(d.getDate());
+const today=()=>dstr(new Date()),tom=()=>{let d=new Date();d.setDate(d.getDate()+1);return dstr(d)};
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const say=t=>{window.Native&&Native.speak(t)};let tab="today",pending=null,log=[];
+function at(t){return t.date&&t.time?new Date(t.date+"T"+t.time+":00").getTime():0}
+function setAlarms(t){if(!window.Native)return;Native.cancel(t.id*3+1);Native.cancel(t.id*3+2);if(t.done||!at(t))return;
+ const w=at(t);if(w-(t.rem||60)*6e4>Date.now())Native.alarm(t.id*3+1,w-(t.rem||60)*6e4,"आठवण: "+t.title,t.time+" वाजता");if(w>Date.now())Native.alarm(t.id*3+2,w,"आता वेळ: "+t.title,t.time)}
+function addTask(a){const t={id:D.seq++,title:a.title,date:a.date||today(),time:a.time||"",cat:a.cat||"वैयक्तिक",done:false,rem:60};D.tasks.push(t);setAlarms(t);save();return t}
+function findTask(a){return D.tasks.find(t=>t.id==a.id)||D.tasks.filter(t=>!t.done&&a.title&&(t.title.includes(a.title)||a.title.includes(t.title)))[0]}
+function dayLine(t){return (t.time||"वेळ नाही")+" "+t.title}
+function sched(){if(!window.Native)return;[[1,8],[2,21]].forEach(([i,h])=>{let d=new Date();d.setHours(h,0,0,0);if(d<=Date.now())d.setDate(d.getDate()+1);Native.alarm(i,+d,h==8?"सुप्रभात! आजची कामे पाहा":"आजचा अहवाल पाहा","Goldy")})}
+function go(t){tab=t;render()}
+function render(){document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.getAttribute("onclick")=="go('"+tab+"')"));$("#m").innerHTML=V[tab]();$("#clk").textContent=new Date().toLocaleString("en-IN")}
+const V={
+today(){const l=D.tasks.filter(t=>t.date<=today()&&(!t.done||t.date==today())).sort((a,b)=>(a.time||"99").localeCompare(b.time||"99"));const dn=D.tasks.filter(t=>t.date==today()&&t.done).length,tot=D.tasks.filter(t=>t.date==today()).length;
+ return `<div class=c><b>आज: ${dn}/${tot} झाली</b><br><input id=nt placeholder="नवे काम"><div class=row><input id=nd type=date value="${today()}"><input id=ntm type=time></div><select id=nc><option>वैयक्तिक<option>व्यवसाय</select><button class=p onclick="addUI()">जोडा</button></div>`+
+ l.map(t=>`<div class=c><div class="${t.done?"done":""}">${esc(dayLine(t))} <small>${t.date<today()?"(बाकी "+t.date+")":""} [${t.cat}]</small></div><div class=row><button onclick="tg(${t.id})">${t.done?"↩":"✔ झाले"}</button><button onclick="mv(${t.id})">उद्या</button><button onclick="rm(${t.id})">🗑</button></div></div>`).join("")||"<div class=c>आज कामे नाहीत.</div>"},
+goldy(){return `<button class="p mic" onclick="Native.listen()">🎤</button><div class=c><input id=tx placeholder="किंवा येथे लिहा" onkeydown="if(event.key=='Enter')ask($('#tx').value)"><button class=p onclick="ask($('#tx').value)">पाठवा</button></div>`+log.slice(-8).reverse().map(x=>`<div class=c>${x}</div>`).join("")},
+acc(){const d=today(),s=k=>D.acc.filter(a=>a.date==d&&a.kind==k).reduce((n,a)=>n+a.amt,0),mo=d.slice(0,7),ms=k=>D.acc.filter(a=>a.date.startsWith(mo)&&a.kind==k).reduce((n,a)=>n+a.amt,0);
+ return `<div class=c>आज: <span class=g>उत्पन्न ₹${s("in")}</span> | <span class=r>खर्च ₹${s("out")}</span><br>महिना: उत्पन्न ₹${ms("in")} | खर्च ₹${ms("out")} | शिल्लक ₹${ms("in")-ms("out")}</div><div class=c><input id=aa type=number placeholder="रक्कम ₹"><input id=an placeholder="तपशील"><select id=ak><option value=out>खर्च<option value=in>उत्पन्न</select><select id=ac><option>व्यवसाय<option>वैयक्तिक</select><button class=p onclick="addAcc({amt:+$('#aa').value,note:$('#an').value,kind:$('#ak').value,cat:$('#ac').value});render()">नोंदवा</button></div>`+
+ D.acc.slice(-30).reverse().map(a=>`<div class=c>${a.date} <b class=${a.kind=="in"?"g":"r"}>${a.kind=="in"?"+":"-"}₹${a.amt}</b> ${esc(a.note)} <small>[${a.cat}]</small></div>`).join("")},
+notes(){return `<div class=c><textarea id=nn rows=2 placeholder="नोट / लक्षात ठेवायची माहिती"></textarea><div class=row><button class=p onclick="addMem($('#nn').value);render()">लक्षात ठेवा</button></div></div><input placeholder="🔎 शोधा" oninput="fl(this.value)">`+`<div id=nl>${nl("")}</div>`},
+more(){return `<div class=c><b>आजचा अहवाल</b><pre style="white-space:pre-wrap">${esc(report())}</pre><button class=p onclick="say(report())">वाचून दाखवा</button></div><div class=c><b>सेटिंग्ज</b><input id=ky type=password placeholder="Gemini API key" value="${esc(D.key)}"><input id=md value="${esc(D.model)}"><button class=p onclick="D.key=$('#ky').value.trim();D.model=$('#md').value.trim();save();alert('सेव्ह')">सेव्ह</button></div><div class=c><b>बॅकअप</b><br><button class=p onclick="bk()">Downloads मध्ये बॅकअप</button><br><small>पुनर्संचयित (restore):</small><input type=file accept=".json" onchange="rs(this)"></div>`}};
+function nl(q){return D.mem.concat(D.notes).filter(n=>n.text.includes(q)).reverse().map(n=>`<div class=c>${esc(n.text)}<br><small>${n.date}</small></div>`).join("")||"<div class=c>काही नाही</div>"}
+function fl(q){$("#nl").innerHTML=nl(q)}
+function addUI(){const t=$("#nt").value.trim();if(!t)return;const k=addTask({title:t,date:$("#nd").value,time:$("#ntm").value,cat:$("#nc").value});render();say("नोंदवले: "+dayLine(k))}
+function tg(id){const t=D.tasks.find(x=>x.id==id);t.done=!t.done;setAlarms(t);save();render()}
+function mv(id){const t=D.tasks.find(x=>x.id==id);t.date=tom();setAlarms(t);save();render()}
+function rm(id){const t=D.tasks.find(x=>x.id==id);t.done=true;setAlarms(t);D.tasks=D.tasks.filter(x=>x.id!=id);save();render()}
+function addAcc(a){if(!(a.amt>0))return;D.acc.push({amt:a.amt,note:a.note||"",kind:a.kind,cat:a.cat||"व्यवसाय",date:a.date||today()});save()}
+function addMem(t){t=(t||"").trim();if(!t)return;D.mem.push({text:t,date:today()});save();say("नोंदवले: "+t)}
+function report(){const td=D.tasks.filter(t=>t.date==today()),dn=td.filter(t=>t.done),pd=D.tasks.filter(t=>!t.done&&t.date<=today()),tm=D.tasks.filter(t=>t.date==tom()&&!t.done),i=D.acc.filter(a=>a.date==today()&&a.kind=="in").reduce((n,a)=>n+a.amt,0),o=D.acc.filter(a=>a.date==today()&&a.kind=="out").reduce((n,a)=>n+a.amt,0);
+ return `आजचा अहवाल ${today()}\nझालेली कामे (${dn.length}): ${dn.map(t=>t.title).join(", ")||"-"}\nबाकी (${pd.length}): ${pd.map(dayLine).join(", ")||"-"}\nउत्पन्न ₹${i}, खर्च ₹${o}\nउद्याची कामे (${tm.length}): ${tm.map(dayLine).join(", ")||"-"}`}
+function bk(){const ok=Native.backup("goldy-"+today()+"-"+Date.now()+".json",JSON.stringify(D));alert(ok?"Downloads/GoldyBackup मध्ये सेव्ह झाले":"बॅकअप अयशस्वी")}
+function rs(i){const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!x.tasks)throw 0;D=x;save();D.tasks.forEach(setAlarms);alert("पुनर्संचयित झाले");render()}catch(e){alert("चुकीची फाइल")}};r.readAsText(f)}
+function reply(t,h){log.push(esc(t)+(h||""));say(t.slice(0,400));if(tab=="goldy")render()}
+
+const J=async(u,o)=>{const r=await fetch(u,o);if(!r.ok)throw new Error(u.split("/")[2]+" "+r.status);return r.json()};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+function myLoc(){let s="";try{s=Native.loc()}catch(e){}if(!s)s=localStorage.goldyLoc||"";return s?JSON.parse(s):null}
+function setLoc(o){localStorage.goldyLoc=JSON.stringify(o)}
+async function geo(q){try{const r=await J("https://nominatim.openstreetmap.org/search?format=json&limit=1&q="+encodeURIComponent(q));if(r[0])return{lat:+r[0].lat,lon:+r[0].lon,name:r[0].display_name.split(",").slice(0,2).join(",")}}catch(e){}
+ const r=await J("https://geocoding-api.open-meteo.com/v1/search?count=1&name="+encodeURIComponent(q));if(r.results)return{lat:r.results[0].latitude,lon:r.results[0].longitude,name:r.results[0].name+", "+(r.results[0].admin1||"")};throw new Error("ठिकाण सापडले नाही: "+q)}
+async function place(q){if(q)return geo(q);const l=myLoc();if(!l)throw new Error("तुमचे लोकेशन मिळाले नाही. लोकेशन परवानगी द्या आणि अॅप उघडा.");try{const r=await J(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${l.lat}&lon=${l.lon}`);l.name=r.display_name.split(",").slice(0,3).join(",")}catch(e){l.name="तुमचे ठिकाण"}return l}
+const WC=c=>c==0?"स्वच्छ आकाश":c<4?"अंशतः ढगाळ":c<50?"धुके":c<70?"पाऊस":c<80?"बर्फ":c<90?"पावसाच्या सरी":"वादळी पाऊस";
+async function whereAmI(){const p=await place();return "सध्याचे ठिकाण: "+p.name+" (अचूकता: फोनच्या शेवटच्या लोकेशननुसार)"}
+async function weather(q){const p=await place(q);const w=await J(`https://api.open-meteo.com/v1/forecast?latitude=${p.lat}&longitude=${p.lon}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=2`);const c=w.current,d=w.daily;
+ return `${p.name}: आत्ता ${c.temperature_2m}°C (जाणवते ${c.apparent_temperature}°C), ${WC(c.weather_code)}, आर्द्रता ${c.relative_humidity_2m}%, वारा ${c.wind_speed_10m} किमी/तास. आज ${d.temperature_2m_min[0]}–${d.temperature_2m_max[0]}°C, पावसाची शक्यता ${d.precipitation_probability_max[0]}%. उद्या ${d.temperature_2m_min[1]}–${d.temperature_2m_max[1]}°C, पाऊस ${d.precipitation_probability_max[1]}%.`}
+async function route(a){const qs=[a.from,...(a.via||[]),a.to],pts=[];for(const q of qs){pts.push(await place(q));await sleep(1100)}
+ const r=await J("https://router.project-osrm.org/route/v1/driving/"+pts.map(p=>p.lon+","+p.lat).join(";")+"?overview=false");if(!r.routes||!r.routes[0])throw new Error("मार्ग सापडला नाही");const x=r.routes[0],km=(x.distance/1000).toFixed(0),m=Math.round(x.duration/60);
+ const names=pts.map(p=>p.name),leg=x.legs.map((l,i)=>names[i].split(",")[0]+"→"+names[i+1].split(",")[0]+" "+(l.distance/1000).toFixed(0)+" किमी").join(", ");
+ const url="https://www.google.com/maps/dir/"+pts.map(p=>p.lat+","+p.lon).join("/");
+ return{t:`रस्त्याने एकूण ${km} किमी, सुमारे ${Math.floor(m/60)} तास ${m%60} मिनिटे (ट्रॅफिक वगळून). टप्पे: ${leg}. ठिकाणे: ${names.join(" | ")}`,h:`<br><a href="#" onclick="Native.open('${url}');return false">🗺 Google Maps मध्ये उघडा</a><br><small>स्रोत: OpenStreetMap/OSRM</small>`}}
+async function webSearch(q){const j=await J("https://generativelanguage.googleapis.com/v1beta/models/"+D.model+":generateContent",{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":D.key},body:JSON.stringify({contents:[{parts:[{text:q+"\n\nफक्त शोधात मिळालेल्या माहितीवरून मराठीत थोडक्यात उत्तर दे. खात्री नसेल तर तसे सांग."}]}],tools:[{google_search:{}}]})});
+ const c=j.candidates[0],t=c.content.parts.map(p=>p.text||"").join(""),s=(c.groundingMetadata?.groundingChunks||[]).map(g=>g.web).filter(Boolean);
+ return{t,h:"<br><small>स्रोत:</small> "+s.slice(0,5).map(w=>`<a href="#" onclick="Native.open('${w.uri}');return false">${esc(w.title||"लिंक")}</a>`).join(" · ")}}
+const INFO={weather:async a=>({t:await weather(a.place)}),route:a=>route(a),where:async()=>({t:await whereAmI()}),now:async()=>({t:new Date().toLocaleString("mr-IN",{timeZone:"Asia/Kolkata",dateStyle:"full",timeStyle:"short"})}),web_search:a=>webSearch(a.query)};
+async function ask(txt){try{Object.assign(D,JSON.parse(localStorage.goldy))}catch(e){}txt=(txt||"").trim();if(!txt)return;log.push("🧑 "+esc(txt));if(tab!="goldy")go("goldy");
+ if(/^(लक्षात ठेव|remember)/i.test(txt)){addMem(txt.replace(/^(लक्षात ठेवा?|remember)[:,\s]*/i,""));return reply("नोंदवले: "+txt.replace(/^(लक्षात ठेवा?|remember)[:,\s]*/i,""))}
+ if(!D.key)return reply("Settings मध्ये Gemini API key टाका.");
+ const ctx={now:new Date().toString(),tasks:D.tasks.filter(t=>!t.done||t.date==today()).slice(-40).map(t=>({id:t.id,title:t.title,date:t.date,time:t.time,done:t.done,cat:t.cat})),memory:D.mem.concat(D.notes).slice(-80).map(m=>m.text),waiting_for_time_of_task:pending};
+ const sys=`तू Goldy, ज्ञानचा मराठी वैयक्तिक असिस्टंट. फक्त JSON दे: {"reply":"अगदी छोटे मराठी उत्तर","actions":[...]}. action types: add_task{title,date(YYYY-MM-DD),time(HH:MM 24h),cat:"वैयक्तिक"|"व्यवसाय"}, done_task{id|title}, update_task{id,date,time}, add_expense{amount,note,cat}, add_income{amount,note,cat}, remember{text}, weather{place}, route{from,to,via:[]}, where{}, now{}, web_search{query}. ठिकाणांची नावे इंग्रजीत लिही (रिकामे = माझे सध्याचे ठिकाण). अंतर, तापमान, तारीख, वेळ, बातम्या स्वतः सांगू नकोस, फक्त योग्य action दे. आजची तारीख व वेळ now मध्ये आहे. "उद्या/परवा" ची तारीख काढ. वेळ सांगितली नसेल तर time रिकामा ठेव, अंदाज लावू नको. माहिती विचारली तर memory मधून खरे उत्तर दे; नसेल तर "माहिती नाही" म्हण. actions फक्त जे सांगितले तेच.`;
+ try{const r=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+D.model+":generateContent",{method:"POST",headers:{"Content-Type":"application/json","x-goog-api-key":D.key},body:JSON.stringify({systemInstruction:{parts:[{text:sys}]},contents:[{role:"user",parts:[{text:JSON.stringify(ctx)+"\n\nवापरकर्ता: "+txt}]}],generationConfig:{responseMimeType:"application/json",temperature:0.2}})});
+ const j=await r.json();if(!r.ok)return reply("AI एरर: "+(j.error?.message||r.status));const o=JSON.parse(j.candidates[0].content.parts[0].text.replace(/```json|```/g,""));const out=[],info=[],html=[];pending=null;
+ for(const a of o.actions||[]){if(a.type=="add_task"&&a.title){const t=addTask(a);out.push("काम: "+dayLine(t)+" ("+t.date+")");if(!t.time){pending=t.id;out.push("'"+t.title+"' किती वाजता करायचे?")}}
+  else if(a.type=="done_task"){const t=findTask(a);if(t){t.done=true;setAlarms(t);save();out.push("झाले: "+t.title)}}
+  else if(a.type=="update_task"){const t=findTask(a);if(t){if(a.date)t.date=a.date;if(a.time)t.time=a.time;setAlarms(t);save();out.push("बदल: "+dayLine(t)+" "+t.date)}}
+  else if(a.type=="add_expense"||a.type=="add_income"){const k=a.type=="add_income"?"in":"out";addAcc({amt:+a.amount,note:a.note,kind:k,cat:a.cat});out.push((k=="in"?"उत्पन्न ₹":"खर्च ₹")+a.amount+" "+(a.note||""))}
+  else if(a.type=="remember"&&a.text){D.mem.push({text:a.text,date:today()});save();out.push("लक्षात: "+a.text)}
+  else if(INFO[a.type]){try{const r=await INFO[a.type](a);info.push(r.t);if(r.h)html.push(r.h)}catch(e){info.push("चूक: "+e.message)}}}
+ reply([out.length?"नोंदवले — "+out.join("; "):"",...info].filter(Boolean).join(". ")||o.reply||"ठीक आहे",html.join(""))}catch(e){reply("चूक: "+e.message)}}
+function onVoice(t){if(!t)return reply("ऐकू आले नाही. पुन्हा प्रयत्न करा.");ask(t)}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){try{Object.assign(D,JSON.parse(localStorage.goldy))}catch(e){}render()}});sched();D.tasks.forEach(setAlarms);render();setInterval(()=>{if(tab!="goldy"&&!document.activeElement.matches("input,textarea,select"))render()},60000);
+</script></body></html>

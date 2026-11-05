@@ -1,0 +1,8 @@
+plugins { id 'com.android.application' }
+android {
+    namespace = 'com.dnyan.goldy'
+    compileSdk 36
+    defaultConfig { applicationId "com.dnyan.goldy"; minSdk 29; targetSdk 35; versionCode 3; versionName "1.2" }
+    signingConfigs { debug { storeFile file("goldy.keystore"); storePassword "goldy123"; keyAlias "goldy"; keyPassword "goldy123" } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_21; targetCompatibility JavaVersion.VERSION_21 }
+}
